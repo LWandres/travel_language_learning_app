@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<!--
+  ╔══════════════════════════════════════════════════════════════════════════╗
+  ║  Rome & Greek Isles — Travel Phrase Flashcards                          ║
+  ║  A static, single-file web app for learning Italian and Greek phrases.  ║
+  ║                                                                          ║
+  ║  SECURITY NOTES (see README.md for full details):                        ║
+  ║  • Content-Security-Policy blocks inline scripts/styles from third       ║
+  ║    parties and prevents XSS via a strict allowlist.                      ║
+  ║  • The Tabler Icons CDN link is pinned to an exact version with a        ║
+  ║    Subresource Integrity (SRI) hash — if the file is tampered with,      ║
+  ║    the browser will refuse to load it.                                   ║
+  ║  • All DOM writes use textContent or safe element construction —         ║
+  ║    never innerHTML with untrusted data.                                  ║
+  ║  • No inline event handlers (onclick="...") — all listeners are          ║
+  ║    attached with addEventListener in JS, which also satisfies CSP.       ║
+  ║  • Referrer-Policy set to no-referrer so navigation doesn't leak URLs.  ║
+  ╚══════════════════════════════════════════════════════════════════════════╝
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <!--
+    SECURITY: Responsive viewport. `width=device-width` is also a mild
+    clickjacking mitigation on older mobile browsers.
+  -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!--
+    SECURITY: Referrer-Policy — when a user navigates away from this page,
+    the browser will NOT send the current URL as a Referer header to the
+    destination. This prevents URL-based information leakage.
+  -->
+  <meta name="referrer" content="no-referrer">
+
+  <!--
+    SECURITY: X-Content-Type-Options equivalent in HTML.
+    When hosted on GitHub Pages the server adds the real header; this meta
+    is belt-and-suspenders for other static hosts.
+  -->
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+
+  <!--
+    SECURITY: Content-Security-Policy (CSP)
+    ════════════════════════════════════════
+    This is the primary XSS defence. It tells the browser exactly what
+    sources are permitted for each resource type.
+
+    IMPORTANT NOTES ON META-TAG CSP LIMITATIONS
+    ─────────────────────────────────────────────
+    A CSP delivered via <meta http-equiv> has two known limitations vs.
+    an HTTP response header:
+
+      1. frame-ancestors is IGNORED in meta CSPs (per spec). Browsers will
+         log a warning and skip the directive entirely. It only works when
+         sent as an HTTP header. We omit it here to avoid console noise.
+         GitHub Pages does send "X-Frame-Options: DENY" automatically, which
+         provides equivalent clickjacking protection.
+
+      2. The meta CSP applies AFTER the parser has already seen the tag,
+         meaning resources referenced before it in the <head> are not covered.
+         Keep this tag as early as possible in <head>.
+
+    INLINE BLOCK HASHING
+    ─────────────────────
+    'self' covers external same-origin files (e.g. app.js, styles.css) but
+    NOT inline style or script blocks — those require either:
+      • 'unsafe-inline'  (defeats XSS protection — never use)
+      • A nonce          (requires server-side header injection — not available
+                          on GitHub Pages static hosting)
+      • A SHA-256 hash   (computed from the exact block content — used here)
+
+    The hashes below were generated with:
+      python3 -c "
+        import hashlib, base64
+        content = open('block.txt').read()   # exact text between tags
+        digest = hashlib.sha256(content.encode()).digest()
+        print('sha256-' + base64.b64encode(digest).decode())
+      "
+
+    If you edit the inline style block or script block, regenerate both hashes and
+    update the CSP. The browser error message conveniently prints the new
+    hash when a mismatch occurs.
+
+    Directive breakdown:
+      default-src 'none'             — deny everything unless listed below
+      script-src  'sha256-...'       — only this exact inline script block
+      style-src   'sha256-...'       — only this exact inline style block plus CDN
+                  cdn.jsdelivr.net   — … plus the SRI-pinned Tabler stylesheet
+      font-src    cdn.jsdelivr.net   — icon webfont from the same CDN
+      img-src     'self' data:       — same-origin images and data: URIs
+      connect-src 'none'             — no fetch/XHR/WebSocket at runtime
+      object-src  'none'             — block plugins (Flash etc.)
+      base-uri    'self'             — prevent <base href> injection
+      form-action 'self'             — forms submit only to same origin
+  -->
+  <meta http-equiv="Content-Security-Policy"
+        content="
+          default-src 'none';
+          script-src  'sha256-jxDXdzQbNTqTIanje6vBAOWeerN9mzAl1U+o8rVRurc=';
+          style-src   'sha256-Tg3//WhQ8jSbfZEwVvmAcjzz5zg7ZuPJ8QlTk6ZBC8g='
+                      https://cdn.jsdelivr.net;
+          font-src    https://cdn.jsdelivr.net;
+          img-src     'self' data:;
+          connect-src 'none';
+          object-src  'none';
+          base-uri    'self';
+          form-action 'self';
+        ">
+
+  <title>Rome &amp; Greek Isles — Travel Phrases</title>
+
+  <!--
+    SECURITY: Subresource Integrity (SRI) + pinned version
+    ─────────────────────────────────────────────────────
+    Using `@latest` (as in the original) is a supply-chain risk: if the CDN
+    or the package is compromised, every visitor automatically gets the
+    malicious version. We fix this two ways:
+
+      1. Pin to an EXACT version (3.34.0) so updates don't happen silently.
+      2. Add integrity="sha384-..." so the browser cryptographically verifies
+         the file against a known-good hash before executing it. If the CDN
+         serves a different file, the browser refuses to load it entirely.
+      3. crossorigin="anonymous" is required for SRI on cross-origin resources.
+
+    To regenerate the hash after a version upgrade:
+      openssl dgst -sha384 -binary tabler-icons.min.css | openssl base64 -A
+    Or use: https://www.srihash.org/
+  -->
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.0/dist/tabler-icons.min.css"
+    integrity="sha384-rRoXxn2yHlrZYB587Ki9RO1tONhLdM6XfORg7Rw4uwH4/Fh/5nP7IUX91bkaKUgs"
+    crossorigin="anonymous"
+  >
+
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f9f9f7;
+      color: #1a1a1a;
+      padding: 1rem;
+    }
+
+    /* ── Layout container ─────────────────────────────────────────────── */
+    .app { padding: 1rem; max-width: 700px; margin: 0 auto; }
+
+    /* ── Page header ──────────────────────────────────────────────────── */
+    .header             { text-align: center; margin-bottom: 1.5rem; }
+    .header h1          { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+    .header p           { font-size: 13px; color: #666; }
+
+    /* ── Mastery progress bar ─────────────────────────────────────────── */
+    .progress-bar       { height: 4px; background: #e8e8e5; border-radius: 4px;
+                          margin-bottom: 1.5rem; overflow: hidden; }
+    .progress-fill      { height: 100%; background: #1D9E75; border-radius: 4px;
+                          transition: width 0.3s ease; }
+
+    /* ── Category tab bar ─────────────────────────────────────────────── */
+    .cat-tabs           { display: flex; gap: 6px; flex-wrap: wrap;
+                          margin-bottom: 1.5rem; justify-content: center; }
+    .cat-btn            { font-size: 12px; padding: 6px 12px; border-radius: 20px;
+                          border: 1px solid #ccc; background: #fff; color: #555;
+                          cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+    .cat-btn:hover      { background: #f0f0ee; }
+    .cat-btn.active     { background: #1D9E75; color: #fff; border-color: #1D9E75;
+                          font-weight: 500; }
+
+    /* ── Phrase counter ───────────────────────────────────────────────── */
+    .phrase-counter     { font-size: 13px; color: #666; text-align: center;
+                          margin-bottom: 1rem; }
+
+    /* ── Travel tip banner ────────────────────────────────────────────── */
+    .tip-banner         { background: #f0f0ee; border-left: 3px solid #EF9F27;
+                          border-radius: 0 8px 8px 0; padding: 10px 14px;
+                          margin-bottom: 1.5rem; font-size: 13px; color: #555;
+                          line-height: 1.5; }
+    .tip-banner strong  { color: #1a1a1a; font-weight: 500; }
+
+    /* ── English phrase card ──────────────────────────────────────────── */
+    .english-card       { background: #fff; border: 1px solid #ddd;
+                          border-radius: 12px; padding: 1.25rem;
+                          text-align: center; margin-bottom: 1rem; }
+    .english-label      { font-size: 11px; text-transform: uppercase;
+                          letter-spacing: 0.5px; color: #aaa; margin-bottom: 6px; }
+    .english-phrase     { font-size: 22px; font-weight: 500; line-height: 1.3; }
+    .english-context    { font-size: 12px; color: #888; margin-top: 6px;
+                          font-style: italic; }
+
+    /* ── Flip-card grid ───────────────────────────────────────────────── */
+    .lang-cards         { display: grid; grid-template-columns: 1fr 1fr;
+                          gap: 12px; margin-bottom: 1rem; }
+    @media (max-width: 480px) { .lang-cards { grid-template-columns: 1fr; } }
+
+    /* Outer wrapper that provides the 3-D perspective context */
+    .flip-card          { perspective: 1000px; height: 200px; cursor: pointer; }
+
+    /* Inner element that rotates */
+    .flip-inner         { position: relative; width: 100%; height: 100%;
+                          transform-style: preserve-3d;
+                          transition: transform 0.5s ease; }
+    .flip-card.flipped .flip-inner { transform: rotateY(180deg); }
+
+    /* Common styles for both faces of every card */
+    .flip-front, .flip-back-it, .flip-back-gr {
+      position: absolute; width: 100%; height: 100%;
+      backface-visibility: hidden; border-radius: 12px; border: 1px solid #ddd;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 1rem;
+    }
+
+    /* Front faces */
+    .flip-front-it      { background: #faf5f0; }
+    .flip-front-gr      { background: #f0f5ff; }
+
+    /* Back faces — rotated 180° in place, revealed on flip */
+    .flip-back-it       { background: #1D9E75; border-color: #1D9E75;
+                          transform: rotateY(180deg); }
+    .flip-back-gr       { background: #185FA5; border-color: #185FA5;
+                          transform: rotateY(180deg); }
+
+    /* Card content elements */
+    .flag               { font-size: 28px; margin-bottom: 6px; }
+    .lang-label         { font-size: 11px; letter-spacing: 0.5px;
+                          font-weight: 500; margin-bottom: 4px; }
+    .lang-label-it      { color: #B37A2A; }
+    .lang-label-gr      { color: #185FA5; }
+    .phrase-translated  { font-size: 20px; font-weight: 500; color: #fff;
+                          text-align: center; line-height: 1.3; margin-bottom: 4px; }
+    .phrase-phonetic    { font-size: 13px; color: rgba(255,255,255,0.8);
+                          text-align: center; font-style: italic;
+                          margin-bottom: 10px; }
+    .audio-btn          { background: rgba(255,255,255,0.2);
+                          border: 1px solid rgba(255,255,255,0.4); color: #fff;
+                          border-radius: 20px; padding: 6px 16px; font-size: 12px;
+                          cursor: pointer; display: flex; align-items: center;
+                          gap: 6px; transition: background 0.15s; }
+    .audio-btn:hover    { background: rgba(255,255,255,0.35); }
+    .audio-btn:disabled { opacity: 0.5; cursor: default; }
+    .phrase-large       { font-size: 18px; font-weight: 500; text-align: center; }
+    .flip-hint          { font-size: 11px; color: #aaa; margin-top: 4px; }
+
+    /* ── Navigation row ───────────────────────────────────────────────── */
+    .nav-row            { display: flex; align-items: center;
+                          justify-content: space-between; margin-top: 0.5rem; }
+    .nav-btn            { padding: 8px 20px; border-radius: 20px;
+                          border: 1px solid #ccc; background: #fff; color: #1a1a1a;
+                          cursor: pointer; font-size: 14px; display: flex;
+                          align-items: center; gap: 6px; transition: all 0.15s; }
+    .nav-btn:hover      { background: #f0f0ee; }
+    .nav-btn:disabled   { opacity: 0.3; cursor: default; }
+
+    /* ── Flip-both link & mastered button ─────────────────────────────── */
+    .flip-all-btn       { font-size: 12px; color: #1D9E75; background: none;
+                          border: none; cursor: pointer;
+                          text-decoration: underline; text-underline-offset: 3px; }
+    .mastered-btn       { padding: 8px 16px; border-radius: 20px;
+                          border: 1px solid #639922; background: #EAF3DE;
+                          color: #3B6D11; cursor: pointer; font-size: 13px;
+                          display: flex; align-items: center; gap: 5px;
+                          justify-content: center; transition: all 0.15s;
+                          margin-top: 0.75rem; width: 100%; }
+    .mastered-btn:hover { background: #C0DD97; }
+    .mastered-count     { font-size: 12px; color: #888; text-align: center;
+                          margin-top: 8px; }
+
+    /* ── Voice selector panel ─────────────────────────────────────────── */
+    .voice-panel        { background: #f0f0ee; border-radius: 8px;
+                          padding: 10px 14px; margin-bottom: 1rem;
+                          display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .voice-row          { display: flex; flex-direction: column; gap: 4px; }
+    .voice-label        { font-size: 11px; color: #aaa; letter-spacing: 0.4px; }
+    .voice-select       { font-size: 12px; padding: 4px 8px; border-radius: 8px;
+                          border: 1px solid #ccc; background: #fff; color: #1a1a1a;
+                          cursor: pointer; width: 100%; }
+    .voice-status       { font-size: 11px; color: #aaa; text-align: center;
+                          margin-top: 6px; grid-column: 1 / -1; min-height: 16px; }
+
+    /*
+     * ── CSP-safe dynamic width for progress bar ────────────────────────
+     * Setting element.style.width directly from JS counts as an inline style
+     * and is blocked by style-src without 'unsafe-inline'.
+     *
+     * The safe alternative is a CSS custom property (variable): the browser
+     * allows JS to set custom properties on element.style because they carry
+     * no executable meaning — they're just typed values. The actual layout
+     * property (width) stays in the stylesheet where CSP expects it.
+     *
+     * JS does:  fill.style.setProperty('--progress-width', pct + '%')
+     * CSS does: width: var(--progress-width, 0%)
+     */
+    .progress-fill      { width: var(--progress-width, 0%); }
+
+    /*
+     * ── Card-back flag emoji ───────────────────────────────────────────
+     * Replaces the two inline style="font-size:22px;margin-bottom:2px"
+     * divs on the back face of each language card.
+     */
+    .card-back-flag     { font-size: 22px; margin-bottom: 2px; }
+
+    /*
+     * ── Flip-both button wrapper ───────────────────────────────────────
+     * Replaces the inline style="text-align:center" div.
+     */
+    .flip-all-wrap      { text-align: center; }
+
+    /*
+     * ── Nav row top margin ─────────────────────────────────────────────
+     * The .nav-row class already exists but didn't include margin-top.
+     * Rather than add a second class, we add a modifier. The inline
+     * style="margin-top:1rem" is removed from the HTML.
+     */
+    .nav-row            { margin-top: 1rem; }
+
+    /*
+     * ── Mastered button "done" state ───────────────────────────────────
+     * Replaces the JS line: mBtn.style.background = isMastered ? '#C0DD97' : ''
+     * We toggle this class instead — no inline style, no CSP violation.
+     */
+    .mastered-btn--done { background: #C0DD97 !important; }
+  </style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ── Page header ──────────────────────────────────────────────────── -->
+  <div class="header">
+    <h1>🌍 Rome &amp; Greek Isles — travel phrases</h1>
+    <p>Tap cards to flip · hear pronunciation · mark mastered</p>
+  </div>
+
+  <!-- ── Overall mastery progress bar ────────────────────────────────── -->
+  <div class="progress-bar" role="progressbar"
+       aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+       aria-label="Overall mastery progress">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+
+  <!-- ── Category tabs (populated by JS) ─────────────────────────────── -->
+  <div class="cat-tabs" id="catTabs" role="tablist" aria-label="Phrase categories"></div>
+
+  <!-- ── "Phrase N of M" counter ──────────────────────────────────────── -->
+  <div class="phrase-counter" id="phraseCounter" aria-live="polite"></div>
+
+  <!-- ── Travel tip banner (safe text injected by JS) ─────────────────── -->
+  <!--
+    SECURITY NOTE: The original code used innerHTML to inject tip text that
+    contained <strong> tags. While that data is developer-authored (not
+    user-supplied), using innerHTML on ANY string is a risky habit that
+    static analysis tools and CSP validators will flag. We instead build the
+    tip DOM nodes explicitly in renderTip() so no HTML parsing occurs.
+  -->
+  <div class="tip-banner" id="tipBanner" role="note" aria-label="Travel tip"></div>
+
+  <!-- ── Voice selector panel ─────────────────────────────────────────── -->
+  <div class="voice-panel">
+    <div class="voice-row">
+      <label class="voice-label" for="itVoiceSelect">ITALIAN VOICE</label>
+      <!-- SECURITY: id targets addEventListener in JS — no inline onchange -->
+      <select class="voice-select" id="itVoiceSelect">
+        <option>Loading voices…</option>
+      </select>
+    </div>
+    <div class="voice-row">
+      <label class="voice-label" for="grVoiceSelect">GREEK VOICE</label>
+      <select class="voice-select" id="grVoiceSelect">
+        <option>Loading voices…</option>
+      </select>
+    </div>
+    <div class="voice-status" id="voiceStatus" aria-live="polite">
+      Loading voices — please wait a moment…
+    </div>
+  </div>
+
+  <!-- ── English phrase card ──────────────────────────────────────────── -->
+  <div class="english-card">
+    <div class="english-label">English phrase</div>
+    <!--
+      SECURITY: All content updates use .textContent — never .innerHTML.
+      This ensures that even if phrase data somehow contained HTML special
+      characters, they are rendered as literal text, not parsed as markup.
+    -->
+    <div class="english-phrase" id="englishPhrase"></div>
+    <div class="english-context"  id="englishContext"></div>
+  </div>
+
+  <!-- ── Language flip cards ──────────────────────────────────────────── -->
+  <!--
+    SECURITY / ACCESSIBILITY:
+    • role="button" + tabindex="0" makes each card keyboard-focusable.
+    • aria-label is updated dynamically by JS to describe current phrase.
+    • All onclick="" attributes are removed; listeners are in JS only.
+      This satisfies the script-src 'self' CSP (inline event handlers are
+      treated as inline scripts and would be blocked by CSP anyway).
+  -->
+  <div class="lang-cards">
+
+    <!-- Italian card -->
+    <div class="flip-card" id="itCard"
+         role="button" tabindex="0"
+         aria-label="Italian phrase card — tap to flip"
+         aria-pressed="false">
+      <div class="flip-inner">
+        <!-- Front face (shown by default) -->
+        <div class="flip-front flip-front-it">
+          <div class="flag" aria-hidden="true">🇮🇹</div>
+          <div class="lang-label lang-label-it">ITALIAN</div>
+          <div class="phrase-large" id="itFront">—</div>
+          <div class="flip-hint">tap to flip</div>
+        </div>
+        <!-- Back face (revealed on flip) -->
+        <div class="flip-back-it" aria-hidden="true">
+          <div class="card-back-flag" aria-hidden="true">🇮🇹</div>
+          <div class="phrase-translated" id="itPhrase"></div>
+          <div class="phrase-phonetic"   id="itPhonetic"></div>
+          <!-- SECURITY: id used for addEventListener; no inline onclick -->
+          <button class="audio-btn" id="itAudioBtn" type="button"
+                  aria-label="Hear Italian pronunciation">
+            <i class="ti ti-volume" aria-hidden="true"></i>
+            <span class="btn-label">hear it</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Greek card -->
+    <div class="flip-card" id="grCard"
+         role="button" tabindex="0"
+         aria-label="Greek phrase card — tap to flip"
+         aria-pressed="false">
+      <div class="flip-inner">
+        <!-- Front face -->
+        <div class="flip-front flip-front-gr">
+          <div class="flag" aria-hidden="true">🇬🇷</div>
+          <div class="lang-label lang-label-gr">GREEK</div>
+          <div class="phrase-large" id="grFront">—</div>
+          <div class="flip-hint">tap to flip</div>
+        </div>
+        <!-- Back face -->
+        <div class="flip-back-gr" aria-hidden="true">
+          <div class="card-back-flag" aria-hidden="true">🇬🇷</div>
+          <div class="phrase-translated" id="grPhrase"></div>
+          <div class="phrase-phonetic"   id="grPhonetic"></div>
+          <button class="audio-btn" id="grAudioBtn" type="button"
+                  aria-label="Hear Greek pronunciation">
+            <i class="ti ti-volume" aria-hidden="true"></i>
+            <span class="btn-label">hear it</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /.lang-cards -->
+
+  <!-- ── Flip-both shortcut ────────────────────────────────────────────── -->
+  <div class="flip-all-wrap">
+    <button class="flip-all-btn" id="flipBothBtn" type="button">
+      flip both cards
+    </button>
+  </div>
+
+  <!-- ── Mastered toggle button ────────────────────────────────────────── -->
+  <button class="mastered-btn" id="masteredBtn" type="button">
+    <i class="ti ti-check" aria-hidden="true"></i>
+    <span class="btn-label">got it! mark as mastered</span>
+  </button>
+  <div class="mastered-count" id="masteredCount" aria-live="polite"></div>
+
+  <!-- ── Prev / Next navigation ────────────────────────────────────────── -->
+  <div class="nav-row">
+    <button class="nav-btn" id="prevBtn" type="button" disabled
+            aria-label="Previous phrase">
+      <i class="ti ti-arrow-left" aria-hidden="true"></i> prev
+    </button>
+    <button class="nav-btn" id="nextBtn" type="button"
+            aria-label="Next phrase">
+      next <i class="ti ti-arrow-right" aria-hidden="true"></i>
+    </button>
+  </div>
+
+</div><!-- /.app -->
+
+<!--
+  SECURITY: The script tag has no src= (same-origin inline), BUT because
+  the CSP above specifies script-src 'self', GitHub Pages serves the HTML
+  file itself as the "self" origin and the embedded script is allowed only
+  when there is NO inline-script restriction without a nonce/hash. Since
+  GitHub Pages does NOT support adding nonce headers, the practical approach
+  for a fully static deployment is to move JS to a separate file (app.js).
+  The HTML references it as: <script src="app.js"></script>
+
+  However, for a single-file shareable release we keep it inline and note
+  that a strict 'self' CSP without 'unsafe-inline' actually DOES block
+  inline scripts — you would need either:
+    a) A separate app.js file (recommended for production), OR
+    b) Add a sha256-... hash of the script block to the CSP.
+
+  For this single-file format we document this trade-off clearly and keep
+  security best practices everywhere else. See README.md §Security for
+  the GitHub Pages deployment recommendation (separate app.js).
+-->
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   PHRASE DATA
+   ───────────────────────────────────────────────────────────────────────────
+   All data is static, developer-authored, and bundled here. No external
+   API calls, no localStorage, no cookies — the app has zero network surface
+   area at runtime (other than the SRI-pinned stylesheet already loaded).
+
+   Object shape per phrase:
+     en    — English phrase (shown on card front / top)
+     ctx   — Usage context hint (shown in italic below English)
+     it    — Italian translation (native script)
+     it_p  — Italian phonetic pronunciation guide
+     gr    — Greek translation (native Unicode script — used for TTS)
+     gr_t  — Greek romanised transliteration (shown on card face)
+     gr_p  — Greek phonetic pronunciation guide
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** @type {Array<{id: string, label: string, tip: string, tipBold: string}>} */
+const CATEGORIES = [
+  {
+    id:      'manners',
+    label:   '👋 Basics & manners',
+    tipBold: 'Pro tip:',
+    tip:     'In both Italy and Greece, greeting locals in their language — even just a "hello" — earns enormous goodwill. Italians and Greeks are warm and expressive; a smile and a buongiorno goes a long way!'
+  },
+  {
+    id:      'numbers',
+    label:   '🔢 Numbers 1–10',
+    tipBold: 'Numbers matter!',
+    tip:     "You'll use them for prices, seats, floors, and quantities. In Italy, markets and small shops often prefer cash — bring euros in small bills. Greece also runs mostly on cash outside tourist zones."
+  },
+  {
+    id:      'airport',
+    label:   '✈️ Airport & planes',
+    tipBold: 'Airport know-how:',
+    tip:     "Rome's main airport is Fiumicino (FCO) — not Ciampino. Athens airport is Eleftherios Venizelos (ATH). Signage is in English too, but locals appreciate when you try the local language at counters!"
+  },
+  {
+    id:      'transport',
+    label:   '🚆 Trains & getting around',
+    tipBold: 'Train tip:',
+    tip:     'In Italy, you MUST validate (stamp) your train ticket in the yellow machines before boarding — even if you bought online. Failure to validate = fine, no exceptions. In Greece, train travel is limited; ferries are the main island transport.'
+  },
+  {
+    id:      'restaurant',
+    label:   '🍽️ Cafes & restaurants',
+    tipBold: 'Dining culture:',
+    tip:     'In Italy, cappuccino is a breakfast drink — ordering one after noon marks you as a tourist! A "caffe" means espresso. In Greece, coffee culture is strong — a Greek frappe (iced Nescafé) is iconic. Tipping is appreciated but not required in either country.'
+  },
+  {
+    id:      'shopping',
+    label:   '🛍️ Shopping',
+    tipBold: 'Shopping note:',
+    tip:     'In Italy, haggling is NOT done in shops — only at flea markets. In Greece, especially on islands, friendly negotiation is more acceptable. VAT refunds are available for non-EU visitors on larger purchases — ask for a tax refund form!'
+  }
+];
+
+/**
+ * Phrase data keyed by category ID.
+ * @type {Object<string, Array<Object>>}
+ */
+const PHRASES = {
+  manners: [
+    { en: 'Hello',                 ctx: 'General all-purpose greeting',
+      it: 'Ciao / Salve',          it_p: 'CHOW / SAL-veh',
+      gr:'Καλημέρα',               gr_t:'Kalimera',             gr_p:'kah-lee-MEH-rah' },
+    { en:'Good morning',           ctx:'Use to greet someone',
+      it:'Buongiorno',             it_p:'bwon-JOR-no',
+      gr:'Γεια σας / Γεια σου',   gr_t:'Yia sas / Yia sou',   gr_p:'YAH-sas (formal) / YAH-soo (casual)' },
+    { en:'Good evening',           ctx:'Use after around 5pm',
+      it:'Buonasera',              it_p:'bwon-ah-SEH-rah',
+      gr:'Καλησπέρα',             gr_t:'Kalispéra',             gr_p:'kah-lee-SPEH-rah' },
+    { en:'Goodbye',                ctx:'Leaving a shop, hotel, taxi',
+      it:'Arrivederci',            it_p:'ah-ree-veh-DER-chee',
+      gr:'Αντίο',                 gr_t:'Antío',                 gr_p:'an-DEE-oh' },
+    { en:'Please',                 ctx:'When ordering or asking for something',
+      it:'Per favore',             it_p:'pehr fah-VOH-reh',
+      gr:'Παρακαλώ',              gr_t:'Parakaló',              gr_p:'pah-rah-kah-LOH' },
+    { en:'Thank you',              ctx:'After any service or help',
+      it:'Grazie',                 it_p:'GRAH-tsyeh',
+      gr:'Ευχαριστώ',             gr_t:'Efcharistó',            gr_p:'ef-kha-ree-STOH' },
+    { en:'Thank you very much',    ctx:'When extra gratitude is warranted',
+      it:'Grazie mille',           it_p:'GRAH-tsyeh MEEL-leh',
+      gr:'Ευχαριστώ πολύ',        gr_t:'Efcharistó polý',       gr_p:'ef-kha-ree-STOH poh-LEE' },
+    { en:"You're welcome",         ctx:'Replying to thanks',
+      it:'Prego',                  it_p:'PREH-goh',
+      gr:'Παρακαλώ',              gr_t:'Parakaló',              gr_p:'pah-rah-kah-LOH' },
+    { en:'Excuse me / Sorry',      ctx:'Getting attention or apologizing',
+      it:'Scusi / Mi scusi',       it_p:'SKOO-zee / mee SKOO-zee',
+      gr:'Συγγνώμη',              gr_t:'Signómi',               gr_p:'see-GNOH-mee' },
+    { en:'Do you speak English?',  ctx:'Ask locals before launching in English',
+      it:'Parla inglese?',         it_p:'PAR-lah een-GLEH-zeh',
+      gr:'Μιλάτε αγγλικά;',       gr_t:'Miláte angliká?',       gr_p:'mee-LAH-teh ang-lee-KAH' },
+    { en:"Sorry, I don't understand",     ctx:'When lost in translation',
+      it:'Non capisco',            it_p:'non kah-PEES-koh',
+      gr:'Συγγνώμη, δεν καταλαβαίνω',  gr_t:'Den katalavaíno',       gr_p:'den kah-tah-lah-VEH-noh' },
+    { en:'Yes / No',               ctx:'Universal!',
+      it:'Sì / No',                it_p:'see / noh',
+      gr:'Ναι / Όχι',             gr_t:'Nai / Óchi',            gr_p:'neh / OH-hee' }
+  ],
+  numbers: [
+    { en:'One',   ctx:'', it:'Uno',     it_p:'OO-noh',         gr:'Ένα',     gr_t:'Éna',     gr_p:'EH-nah' },
+    { en:'Two',   ctx:'', it:'Due',     it_p:'DOO-eh',         gr:'Δύο',     gr_t:'Dýo',     gr_p:'DEE-oh' },
+    { en:'Three', ctx:'', it:'Tre',     it_p:'treh',           gr:'Τρία',    gr_t:'Tría',    gr_p:'TREE-ah' },
+    { en:'Four',  ctx:'', it:'Quattro', it_p:'KWAT-troh',      gr:'Τέσσερα', gr_t:'Téssera', gr_p:'TES-seh-rah' },
+    { en:'Five',  ctx:'', it:'Cinque',  it_p:'CHEEN-kweh',     gr:'Πέντε',   gr_t:'Pénte',   gr_p:'PEN-teh' },
+    { en:'Six',   ctx:'', it:'Sei',     it_p:'seh-ee',         gr:'Έξι',     gr_t:'Éxi',     gr_p:'EK-see' },
+    { en:'Seven', ctx:'', it:'Sette',   it_p:'SET-teh',        gr:'Επτά',    gr_t:'Eptá',    gr_p:'ep-TAH' },
+    { en:'Eight', ctx:'', it:'Otto',    it_p:'OT-toh',         gr:'Οκτώ',    gr_t:'Októ',    gr_p:'ok-TOH' },
+    { en:'Nine',  ctx:'', it:'Nove',    it_p:'NOH-veh',        gr:'Εννέα',   gr_t:'Ennéa',   gr_p:'en-NEH-ah' },
+    { en:'Ten',   ctx:'', it:'Dieci',   it_p:'dee-EH-chee',    gr:'Δέκα',    gr_t:'Déka',    gr_p:'DEH-kah' }
+  ],
+  airport: [
+    { en:'Where is gate number…?',  ctx:'At the airport terminal',
+      it:"Dov'è il gate numero…?",  it_p:'doh-VEH eel GAY-teh NOO-meh-roh',
+      gr:'Πού είναι η πύλη αριθμός…;', gr_t:'Poú eínai i pýli arithmós…?', gr_p:'poo EE-neh ee PEE-lee ah-reeth-MOS' },
+    { en:'My flight is…',            ctx:'When speaking to staff',
+      it:'Il mio volo è…',           it_p:'eel MEE-oh VOH-loh eh',
+      gr:'Η πτήση μου είναι…',      gr_t:'I ptísi mou eínai…',           gr_p:'ee PTEE-see moo EE-neh' },
+    { en:'Is the flight delayed?',   ctx:'Checking your status',
+      it:'Il volo è in ritardo?',    it_p:'eel VOH-loh eh een ree-TAR-doh',
+      gr:'Έχει καθυστέρηση η πτήση;', gr_t:'Échei kathystérisi i ptísi?', gr_p:'EH-hee kah-thees-TEH-ree-see ee PTEE-see' },
+    { en:'Where is baggage claim?',  ctx:'On arrival',
+      it:"Dov'è il ritiro bagagli?", it_p:'doh-VEH eel ree-TEE-roh bah-GAH-lyee',
+      gr:'Πού είναι η παραλαβή αποσκευών;', gr_t:'Poú eínai i paralabí aposkevón?', gr_p:'poo EE-neh ee pah-rah-lah-VEE ah-pos-keh-VON' },
+    { en:'Where is the taxi / bus?', ctx:'Exiting the airport',
+      it:"Dov'è il taxi / l'autobus?", it_p:"doh-VEH eel TAK-see / low-TOH-boos",
+      gr:'Πού είναι το ταξί / λεωφορείο;', gr_t:'Poú eínai to taxí / leoforeío?', gr_p:'poo EE-neh toh tak-SEE / leh-oh-foh-REE-oh' },
+    { en:'I have nothing to declare', ctx:'At customs',
+      it:'Non ho niente da dichiarare', it_p:'non oh nee-EN-teh dah dee-kyah-RAH-reh',
+      gr:'Δεν έχω τίποτα να δηλώσω', gr_t:'Den écho típota na dilóso', gr_p:'den EH-hoh TEE-poh-tah nah dee-LOH-soh' }
+  ],
+  transport: [
+    { en:'One ticket to…, please',       ctx:'At any ticket counter',
+      it:'Un biglietto per…, per favore', it_p:'oon beel-YET-toh pehr… pehr fah-VOH-reh',
+      gr:'Ένα εισιτήριο για…, παρακαλώ', gr_t:'Éna eisitírio gia…, parakaló', gr_p:'EH-nah ee-see-TEE-ree-oh yah… pah-rah-kah-LOH' },
+    { en:'Is this seat free?',            ctx:'On train, bus or ferry',
+      it:'È libero questo posto?',        it_p:'eh LEE-beh-roh KWES-toh POS-toh',
+      gr:'Είναι ελεύθερη αυτή η θέση;',   gr_t:'Eínai eléftheri aftí i thési?', gr_p:'EE-neh eh-LEF-theh-ree af-TEE ee THEH-see' },
+    { en:'What time does it arrive?',     ctx:'Train, ferry, or bus',
+      it:'A che ora arriva?',             it_p:'ah keh OH-rah ah-REE-vah',
+      gr:'Τι ώρα φτάνει;',               gr_t:'Ti óra ftánei?',               gr_p:'tee OH-rah FTAH-nee' },
+    { en:'Is there a delay?',             ctx:'Checking status',
+      it:"C'è un ritardo?",              it_p:'cheh oon ree-TAR-doh',
+      gr:'Υπάρχει καθυστέρηση;',         gr_t:'Ypárchei kathystérisi?',        gr_p:'ee-PAR-hee kah-thees-TEH-ree-see' },
+    { en:'Has this train been cancelled?', ctx:'When departure board looks wrong',
+      it:'Questo treno è stato cancellato?', it_p:'KWES-toh TREH-noh eh STAH-toh kan-chel-LAH-toh',
+      gr:'Έχει ακυρωθεί αυτό το τρένο;', gr_t:'Échei akyrothei aftó to tréno?', gr_p:'EH-hee ah-kee-roh-THEE af-TOH toh TREH-noh' },
+    { en:'Where is the train station?',   ctx:'Asking for directions',
+      it:"Dov'è la stazione?",            it_p:'doh-VEH lah stah-TSYOH-neh',
+      gr:'Πού είναι ο σταθμός;',          gr_t:'Poú eínai o stathmós?',         gr_p:'poo EE-neh oh stath-MOS' },
+    { en:'I need a taxi to the hotel',    ctx:'Arriving in a city',
+      it:"Ho bisogno di un taxi per l'hotel", it_p:'oh bee-ZON-yoh dee oon TAK-see pehr loh-TEL',
+      gr:'Χρειάζομαι ταξί για το ξενοδοχείο', gr_t:'Chreíazomai taxí gia to xenodocheío', gr_p:'khree-AH-zoh-meh tak-SEE yah toh kseh-noh-doh-KHEE-oh' },
+    { en:'Which platform?',               ctx:'Finding your train',
+      it:'Quale binario?',                it_p:'KWAH-leh bee-NAH-ree-oh',
+      gr:'Ποια αποβάθρα;',               gr_t:'Poiá apováthra?',               gr_p:'pee-AH ah-poh-VATH-rah' },
+    { en:'Where is the port / ferry terminal?', ctx:'For Greek island hopping',
+      it:"Dov'è il porto?",               it_p:'doh-VEH eel POR-toh',
+      gr:'Πού είναι το λιμάνι;',          gr_t:'Poú eínai to limáni?',          gr_p:'poo EE-neh toh lee-MAH-nee' }
+  ],
+  restaurant: [
+    { en:'A table for two, please',      ctx:'Entering a restaurant',
+      it:'Un tavolo per due, per favore', it_p:'oon TAH-voh-loh pehr DOO-eh pehr fah-VOH-reh',
+      gr:'Ένα τραπέζι για δύο, παρακαλώ', gr_t:'Éna trapézi gia dýo, parakaló', gr_p:'EH-nah trah-PEH-zee yah DEE-oh pah-rah-kah-LOH' },
+    { en:'The menu, please',             ctx:'Once seated',
+      it:'Il menu, per favore',           it_p:'eel meh-NOO pehr fah-VOH-reh',
+      gr:'Τον κατάλογο, παρακαλώ',       gr_t:'Ton katálogo, parakaló',         gr_p:'ton kah-TAH-loh-goh pah-rah-kah-LOH' },
+    { en:'I would like…',                ctx:'Ordering your food',
+      it:'Vorrei…',                       it_p:'voh-REH-ee',
+      gr:'Θα ήθελα…',                    gr_t:'Tha íthela…',                    gr_p:'thah EE-theh-lah' },
+    { en:'What do you recommend?',       ctx:'When unsure what to order',
+      it:'Cosa mi consiglia?',            it_p:'KOH-zah mee kon-SEEL-yah',
+      gr:'Τι συστήνετε;',                gr_t:'Ti systínete?',                  gr_p:'tee sees-TEE-neh-teh' },
+    { en:'Delicious!',                   ctx:'Complimenting the food',
+      it:'Delizioso!',                    it_p:'deh-lee-TSYOH-zoh',
+      gr:'Νόστιμο!',                     gr_t:'Nóstimo!',                       gr_p:'NOH-stee-moh' },
+    { en:'The check, please',            ctx:'When ready to pay',
+      it:'Il conto, per favore',          it_p:'eel KON-toh pehr fah-VOH-reh',
+      gr:'Τον λογαριασμό, παρακαλώ',     gr_t:'Ton logariasmó, parakaló',       gr_p:'ton loh-gah-ree-az-MOH pah-rah-kah-LOH' },
+    { en:'Can I pay by card?',           ctx:'Before handing over cash',
+      it:'Posso pagare con carta?',       it_p:'POS-soh pah-GAH-reh kon KAR-tah',
+      gr:'Μπορώ να πληρώσω με κάρτα;',  gr_t:'Boró na pliróso me kárta?',     gr_p:'boh-ROH nah plee-ROH-soh meh KAR-tah' },
+    { en:'Water, please',                ctx:'Still or sparkling — specify!',
+      it:'Acqua, per favore',             it_p:'AHK-kwah pehr fah-VOH-reh',
+      gr:'Νερό, παρακαλώ',              gr_t:'Neró, parakaló',                 gr_p:'neh-ROH pah-rah-kah-LOH' },
+    { en:'One coffee, please',           ctx:'Espresso in Italy, Greek coffee in Greece!',
+      it:'Un caffè, per favore',          it_p:'oon kaf-FEH pehr fah-VOH-reh',
+      gr:'Έναν καφέ, παρακαλώ',         gr_t:'Énan kafé, parakaló',            gr_p:'EH-nahn kah-FEH pah-rah-kah-LOH' }
+  ],
+  shopping: [
+    { en:'How much does this cost?',       ctx:'In any shop',
+      it:'Quanto costa?',                   it_p:'KWAHN-toh KOS-tah',
+      gr:'Πόσο κάνει αυτό;',              gr_t:'Póso kánei aftó?',              gr_p:'POH-soh KAH-nee af-TOH' },
+    { en:'Do you have this in another size?', ctx:'Clothing & accessories',
+      it:"Ce l'ha in un'altra taglia?",     it_p:'cheh lah een oon-AHL-trah TAH-lyah',
+      gr:'Το έχετε σε άλλο μέγεθος;',     gr_t:'To échete se állo mégethos?',   gr_p:'toh EH-heh-teh seh AH-loh MEH-yeh-thos' },
+    { en:"I'm just looking, thanks",        ctx:'When shop staff approach',
+      it:'Sto solo guardando, grazie',       it_p:'stoh SOH-loh gwahr-DAN-doh GRAH-tsyeh',
+      gr:'Απλώς κοιτάζω, ευχαριστώ',      gr_t:'Aplós koitázo, efcharistó',     gr_p:'ah-PLOS kee-TAH-zoh ef-kha-ree-STOH' },
+    { en:"I'll take this one",              ctx:'Making a purchase',
+      it:'Prendo questo',                    it_p:'PREN-doh KWES-toh',
+      gr:'Θα πάρω αυτό',                   gr_t:'Tha páro aftó',                 gr_p:'thah PAH-roh af-TOH' },
+    { en:'Can you give me a discount?',     ctx:'At markets or small shops (Greece mainly)',
+      it:'Può farmi uno sconto?',            it_p:'pwoh FAR-mee OO-noh SKON-toh',
+      gr:'Μπορείτε να μου κάνετε έκπτωση;', gr_t:'Boríte na mou kánete ékptosi?', gr_p:'boh-REE-teh nah moo KAH-neh-teh EK-ptoh-see' },
+    { en:'Do you accept cards?',            ctx:'Before shopping at small stores',
+      it:'Accettate carte?',                 it_p:'ah-chet-TAH-teh KAR-teh',
+      gr:'Δέχεστε κάρτες;',               gr_t:'Décheste kártes?',              gr_p:'DEH-kheh-steh KAR-tes' }
+  ]
+};
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VOICE ENGINE
+   ───────────────────────────────────────────────────────────────────────────
+   The Web Speech API loads voices asynchronously and availability varies
+   across browsers (Chrome, Firefox, Safari) and operating systems.
+
+   Strategy:
+   1. On page load, attempt to populate selectors immediately (Chrome often
+      has voices synchronously in same-session reloads).
+   2. If voices list is empty, register the 'voiceschanged' event and also
+      set a 500 ms fallback timer — both will call initVoices() when ready.
+   3. Preferred voices are scored by name match against known-good neural
+      voices, with network (neural) voices ranked above local (synthesised).
+
+   SECURITY: Voice names come from window.speechSynthesis.getVoices() which
+   returns browser-controlled objects — not user input. We still validate
+   that the chosen voice name actually exists in the voices list before use
+   (see setVoice) to prevent any prototype-pollution or object-forgery edge
+   cases.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Holds the currently selected SpeechSynthesisVoice for each language. */
+const selectedVoices = { it: null, gr: null };
+
+/** Flag so we only run full init once even if voiceschanged fires repeatedly. */
+let voicesReady = false;
+
+/**
+ * Preferred voice names in priority order.
+ * Google neural voices come first because they sound the most natural.
+ * These are the names as reported by Chrome on most platforms.
+ */
+const PREF_IT = ['Google italiano', 'Alice', 'Luca', 'Federica'];
+const PREF_GR = ['Google ελληνικά', 'Melina'];
+
+/**
+ * Returns a score for a voice name against a preference list.
+ * Higher score = better match. Returns 0 for no match.
+ *
+ * @param {string} name - Voice name from SpeechSynthesisVoice.name
+ * @param {string[]} prefs - Ordered list of preferred voice names
+ * @returns {number}
+ */
+function scoreVoiceName(name, prefs) {
+  const idx = prefs.indexOf(name);
+  return idx === -1 ? 0 : prefs.length - idx;
+}
+
+/**
+ * Picks the best available voice for a language.
+ * Prefers named neural voices, then any network voice, then any local voice.
+ *
+ * @param {'it'|'gr'} lang
+ * @returns {SpeechSynthesisVoice|null}
+ */
+function pickBestVoice(lang) {
+  const voices  = window.speechSynthesis.getVoices();
+  const code    = lang === 'it' ? 'it' : 'el';
+  const prefs   = lang === 'it' ? PREF_IT : PREF_GR;
+  const matches = voices.filter(v => v.lang.toLowerCase().startsWith(code));
+
+  if (!matches.length) return null;
+
+  return matches.sort((a, b) => {
+    // First: prefer named neural voices
+    const scoreDiff = scoreVoiceName(b.name, prefs) - scoreVoiceName(a.name, prefs);
+    if (scoreDiff !== 0) return scoreDiff;
+    // Second: prefer network (neural cloud) voices over local (on-device TTS)
+    if (a.localService !== b.localService) return a.localService ? 1 : -1;
+    return 0;
+  })[0];
+}
+
+/**
+ * Populates the voice <select> for one language with all available voices,
+ * pre-selecting the best one.
+ *
+ * SECURITY: Uses textContent and .value assignments — never innerHTML — so
+ * voice names containing special characters cannot inject markup.
+ *
+ * @param {'it'|'gr'} lang
+ */
+function populateVoiceSelect(lang) {
+  const voices  = window.speechSynthesis.getVoices();
+  const code    = lang === 'it' ? 'it' : 'el';
+  const selEl   = document.getElementById(lang === 'it' ? 'itVoiceSelect' : 'grVoiceSelect');
+  const matches = voices.filter(v => v.lang.toLowerCase().startsWith(code));
+  const best    = pickBestVoice(lang);
+
+  // Clear existing options safely
+  while (selEl.firstChild) selEl.removeChild(selEl.firstChild);
+
+  if (!matches.length) {
+    const opt = document.createElement('option');
+    opt.textContent = 'No ' + lang.toUpperCase() + ' voice found';
+    selEl.appendChild(opt);
+    return;
+  }
+
+  matches.forEach(v => {
+    const opt     = document.createElement('option');
+    opt.value     = v.name;   // .value is a property assignment, not HTML parse
+    opt.textContent = v.name + (v.localService ? ' (local)' : ' (network)');
+    if (best && v.name === best.name) opt.selected = true;
+    selEl.appendChild(opt);
+  });
+
+  selectedVoices[lang] = best;
+}
+
+/**
+ * Called when the user manually picks a voice from the dropdown.
+ * Validates that the chosen name actually exists in the browser's voice list
+ * before storing it — prevents potential prototype-pollution exploits.
+ *
+ * SECURITY: We look up the name in the live voices array rather than
+ * trusting the value string directly. This is belt-and-suspenders; real
+ * risk is low but it's good defensive coding practice.
+ *
+ * @param {'it'|'gr'} lang
+ * @param {string}    name - Voice name from the select element
+ */
+function setVoice(lang, name) {
+  const voices = window.speechSynthesis.getVoices();
+  // Only accept voices that genuinely exist in the browser's list
+  const found  = voices.find(v => v.name === name) || null;
+  selectedVoices[lang] = found;
+}
+
+/**
+ * Master voice initialiser. Tries to populate both selectors.
+ * Returns true on success, false if voices aren't loaded yet.
+ *
+ * @returns {boolean}
+ */
+function initVoices() {
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) return false;   // Not ready yet — caller will retry
+
+  populateVoiceSelect('it');
+  populateVoiceSelect('gr');
+  voicesReady = true;
+
+  const itName = selectedVoices.it ? selectedVoices.it.name : 'none found';
+  const grName = selectedVoices.gr ? selectedVoices.gr.name : 'none found';
+
+  // Safe: textContent, not innerHTML
+  document.getElementById('voiceStatus').textContent =
+    'IT: ' + itName + ' · GR: ' + grName;
+
+  return true;
+}
+
+// Bootstrap voice loading — the API is async on first page load in Chrome
+if (window.speechSynthesis) {
+  if (!initVoices()) {
+    // Chrome fires voiceschanged when the list is ready
+    window.speechSynthesis.addEventListener('voiceschanged', () => {
+      if (!voicesReady) initVoices();
+    });
+    // Safari / Firefox fallback timer
+    setTimeout(() => { if (!voicesReady) initVoices(); }, 500);
+  }
+} else {
+  document.getElementById('voiceStatus').textContent =
+    'Speech not supported — use the phonetics shown on each card.';
+}
+
+/**
+ * Speaks the current phrase in the given language using the Web Speech API.
+ * Uses native script for better TTS pronunciation (especially Greek).
+ *
+ * SECURITY: The text fed to SpeechSynthesisUtterance comes from the static
+ * PHRASES data object, not from the DOM or user input, so there is no
+ * injection vector here. The lang code is hard-coded, not user-supplied.
+ *
+ * @param {'it'|'gr'} lang
+ */
+function speakPhrase(lang) {
+  if (!window.speechSynthesis) return;
+
+  const p        = getCurrentPhrase();
+  // Use native Greek Unicode script for TTS (romanised text gives poor results)
+  const text     = lang === 'it' ? p.it : p.gr;
+  const langCode = lang === 'it' ? 'it-IT' : 'el-GR';
+
+  // Cancel any in-progress speech before starting new utterance
+  window.speechSynthesis.cancel();
+
+  const utter  = new SpeechSynthesisUtterance(text);
+  utter.lang   = langCode;
+  utter.rate   = 0.82;   // Slightly slower than normal — easier to follow
+  utter.pitch  = 1;
+
+  // Only set voice if we have a validated selection (see setVoice above)
+  if (selectedVoices[lang]) utter.voice = selectedVoices[lang];
+
+  // Get button reference once — used in all three event handlers below
+  const btn      = document.getElementById(lang === 'it' ? 'itAudioBtn' : 'grAudioBtn');
+  const labelEl  = btn ? btn.querySelector('.btn-label') : null;
+  const iconEl   = btn ? btn.querySelector('i') : null;
+
+  /**
+   * Update button appearance safely using DOM properties (not innerHTML).
+   * @param {string} iconClass - ti-* icon class name
+   * @param {string} labelText - visible button label
+   * @param {boolean} disabled
+   */
+  function setBtnState(iconClass, labelText, disabled) {
+    if (!btn) return;
+    if (iconEl)  { iconEl.className = 'ti ' + iconClass; }
+    if (labelEl) { labelEl.textContent = labelText; }
+    btn.disabled = disabled;
+  }
+
+  utter.onstart = () => setBtnState('ti-player-pause', 'playing…', true);
+  utter.onend   = () => setBtnState('ti-volume',       'hear it',   false);
+  utter.onerror = () => setBtnState('ti-volume',       'hear it',   false);
+
+  window.speechSynthesis.speak(utter);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   APPLICATION STATE
+   ───────────────────────────────────────────────────────────────────────────
+   All state is kept in plain variables — no localStorage, no cookies.
+   The app is intentionally stateless across page reloads for simplicity
+   and privacy (no data is ever persisted or transmitted).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Currently active category ID (must be a key of PHRASES). */
+let currentCat = 'manners';
+
+/** Zero-based index of the currently displayed phrase within the category. */
+let currentIdx = 0;
+
+/**
+ * Mastered sets — one per category, storing zero-based phrase indices.
+ * @type {Object<string, Set<number>>}
+ */
+const mastered = {};
+
+/**
+ * Flip state for each language card.
+ * @type {{it: boolean, gr: boolean}}
+ */
+const flipped = { it: false, gr: false };
+
+/** Initialise an empty mastered Set for every category. */
+function initMastered() {
+  CATEGORIES.forEach(c => { mastered[c.id] = new Set(); });
+}
+
+/**
+ * Returns the phrase array for the current category.
+ * @returns {Array<Object>}
+ */
+function getCatPhrases() {
+  return PHRASES[currentCat];
+}
+
+/**
+ * Returns the phrase object at the current index.
+ * @returns {Object}
+ */
+function getCurrentPhrase() {
+  return PHRASES[currentCat][currentIdx];
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DOM HELPERS
+   ───────────────────────────────────────────────────────────────────────────
+   All DOM updates use textContent or explicit node construction.
+   innerHTML is NEVER used with data that flows from phrase strings.
+   This eliminates the class of XSS vulnerabilities caused by accidentally
+   embedding < > & " ' in phrase text.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Sets the text of a DOM element safely.
+ * @param {string} id - Element ID
+ * @param {string} text
+ */
+function setText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+/**
+ * Resets an audio button to its default "hear it" state.
+ * Uses DOM property assignments — not innerHTML.
+ * @param {string} btnId - Element ID of the button
+ */
+function resetAudioBtn(btnId) {
+  const btn     = document.getElementById(btnId);
+  if (!btn) return;
+  const iconEl  = btn.querySelector('i');
+  const labelEl = btn.querySelector('.btn-label');
+  if (iconEl)  iconEl.className     = 'ti ti-volume';
+  if (labelEl) labelEl.textContent  = 'hear it';
+  btn.disabled = false;
+}
+
+/**
+ * Renders the travel tip banner for the current category.
+ *
+ * SECURITY: The original code used `tipBanner.innerHTML = cat.tip` where
+ * tip contained a <strong> tag. While this was developer-controlled data,
+ * using innerHTML on any string is flagged by static analysis tools and
+ * violates a strict CSP. Instead, we store tipBold and tip separately and
+ * construct the DOM nodes explicitly — no HTML parsing occurs.
+ */
+function renderTip() {
+  const cat    = CATEGORIES.find(c => c.id === currentCat);
+  const banner = document.getElementById('tipBanner');
+  if (!banner) return;
+
+  // Clear existing content
+  while (banner.firstChild) banner.removeChild(banner.firstChild);
+
+  if (!cat) return;
+
+  // Build: <strong>Pro tip:</strong> text…
+  const strong      = document.createElement('strong');
+  strong.textContent = cat.tipBold;   // textContent — safe
+
+  banner.appendChild(strong);
+  banner.appendChild(document.createTextNode(' ' + cat.tip));  // createTextNode — safe
+}
+
+/**
+ * Rebuilds the category tab buttons.
+ * Uses textContent and addEventListener — no inline handlers, no innerHTML.
+ */
+function renderCategories() {
+  const container = document.getElementById('catTabs');
+  if (!container) return;
+
+  // Remove all existing tab buttons
+  while (container.firstChild) container.removeChild(container.firstChild);
+
+  CATEGORIES.forEach(cat => {
+    const btn       = document.createElement('button');
+    btn.type        = 'button';
+    btn.className   = 'cat-btn' + (cat.id === currentCat ? ' active' : '');
+    btn.textContent = cat.label;   // textContent — emoji + text, no HTML
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', cat.id === currentCat ? 'true' : 'false');
+
+    btn.addEventListener('click', () => {
+      currentCat = cat.id;
+      currentIdx = 0;
+      renderCategories();
+      renderTip();
+      render();
+    });
+
+    container.appendChild(btn);
+  });
+}
+
+/**
+ * Updates the progress bar and mastered count display.
+ */
+function updateProgress() {
+  let total = 0;
+  let done  = 0;
+
+  CATEGORIES.forEach(c => {
+    total += PHRASES[c.id].length;
+    done  += mastered[c.id].size;
+  });
+
+  const pct      = total ? Math.round(done / total * 100) : 0;
+  const fill     = document.getElementById('progressFill');
+  const bar      = fill ? fill.parentElement : null;
+  const countEl  = document.getElementById('masteredCount');
+
+  /*
+   * SECURITY: Setting fill.style.width = '...' directly is an inline style
+   * write and is blocked by style-src without 'unsafe-inline'.
+   *
+   * CSS custom properties (--foo) are exempt from this restriction because
+   * they have no executable meaning — they're inert typed values. Setting
+   * one via setProperty() is allowed even under a strict style-src CSP.
+   * The actual layout property (width) lives in the stylesheet as:
+   *   width: var(--progress-width, 0%)
+   */
+  if (fill) fill.style.setProperty('--progress-width', pct + '%');
+  if (bar)  bar.setAttribute('aria-valuenow', pct);
+
+  if (countEl) {
+    countEl.textContent = done > 0 ? done + ' of ' + total + ' phrases mastered' : '';
+  }
+}
+
+/**
+ * Main render function — updates ALL card content for the current phrase.
+ * Called on navigation, category change, and mastered toggle.
+ */
+function render() {
+  const list = getCatPhrases();
+  const p    = list[currentIdx];
+
+  // ── English card ──────────────────────────────────────────────────────
+  setText('englishPhrase',  p.en);
+  setText('englishContext', p.ctx || '');
+
+  // ── Italian card faces ────────────────────────────────────────────────
+  setText('itFront',   p.it);
+  setText('itPhrase',  p.it);
+  setText('itPhonetic', p.it_p);
+
+  // ── Greek card faces ──────────────────────────────────────────────────
+  // gr_t = romanised transliteration shown on screen
+  // gr   = native Unicode script used for TTS
+  setText('grFront',    p.gr_t || p.gr);
+  setText('grPhrase',   p.gr_t || p.gr);
+  setText('grPhonetic', p.gr_p);
+
+  // ── Reset flip state ──────────────────────────────────────────────────
+  flipped.it = false;
+  flipped.gr = false;
+  document.getElementById('itCard').classList.remove('flipped');
+  document.getElementById('grCard').classList.remove('flipped');
+  document.getElementById('itCard').setAttribute('aria-pressed', 'false');
+  document.getElementById('grCard').setAttribute('aria-pressed', 'false');
+
+  // ── Reset audio buttons ───────────────────────────────────────────────
+  resetAudioBtn('itAudioBtn');
+  resetAudioBtn('grAudioBtn');
+
+  // Cancel any in-progress speech when navigating away
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+
+  // ── Navigation button state ───────────────────────────────────────────
+  document.getElementById('prevBtn').disabled = (currentIdx === 0);
+  document.getElementById('nextBtn').disabled = (currentIdx === list.length - 1);
+
+  // ── Mastered button state ─────────────────────────────────────────────
+  const isMastered = mastered[currentCat].has(currentIdx);
+  const mBtn       = document.getElementById('masteredBtn');
+  const mLabel     = mBtn ? mBtn.querySelector('.btn-label') : null;
+  const mIcon      = mBtn ? mBtn.querySelector('i') : null;
+
+  if (mLabel) mLabel.textContent = isMastered ? 'mastered! (undo?)' : 'got it! mark as mastered';
+  if (mIcon)  mIcon.className    = isMastered ? 'ti ti-check-circle' : 'ti ti-check';
+  /*
+   * SECURITY: mBtn.style.background = '...' is an inline style write — blocked
+   * by CSP. Use classList.toggle with a pre-defined CSS class instead.
+   * The .mastered-btn--done class in the stylesheet sets background: #C0DD97.
+   */
+  if (mBtn)   mBtn.classList.toggle('mastered-btn--done', isMastered);
+
+  // ── Phrase counter ────────────────────────────────────────────────────
+  setText('phraseCounter', 'phrase ' + (currentIdx + 1) + ' of ' + list.length);
+
+  // ── Progress bar ──────────────────────────────────────────────────────
+  updateProgress();
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   USER INTERACTION HANDLERS
+   ───────────────────────────────────────────────────────────────────────────
+   All handlers are attached via addEventListener (never inline onclick="").
+   This is required for the script-src 'self' CSP to be honoured — inline
+   event handlers count as inline scripts and are blocked by CSP.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Flips one language card, updating its CSS class and ARIA state.
+ * @param {'it'|'gr'} lang
+ */
+function flipCard(lang) {
+  const cardId = lang === 'it' ? 'itCard' : 'grCard';
+  const card   = document.getElementById(cardId);
+  flipped[lang] = !flipped[lang];
+
+  if (flipped[lang]) {
+    card.classList.add('flipped');
+    card.setAttribute('aria-pressed', 'true');
+  } else {
+    card.classList.remove('flipped');
+    card.setAttribute('aria-pressed', 'false');
+  }
+}
+
+/**
+ * Flips both cards simultaneously, or un-flips them if any are already flipped.
+ */
+function flipBoth() {
+  const anyFlipped = flipped.it || flipped.gr;
+  ['it', 'gr'].forEach(lang => {
+    const card = document.getElementById(lang === 'it' ? 'itCard' : 'grCard');
+    if (!anyFlipped) {
+      flipped[lang] = true;
+      card.classList.add('flipped');
+      card.setAttribute('aria-pressed', 'true');
+    } else {
+      flipped[lang] = false;
+      card.classList.remove('flipped');
+      card.setAttribute('aria-pressed', 'false');
+    }
+  });
+}
+
+/**
+ * Navigates by +1 (next) or -1 (prev) with bounds clamping.
+ * @param {1|-1} dir
+ */
+function navigate(dir) {
+  const list = getCatPhrases();
+  currentIdx = Math.max(0, Math.min(list.length - 1, currentIdx + dir));
+  render();
+}
+
+/**
+ * Toggles the mastered state for the current phrase.
+ * If newly mastered AND not the last phrase, auto-advances after 600 ms.
+ */
+function markMastered() {
+  if (mastered[currentCat].has(currentIdx)) {
+    mastered[currentCat].delete(currentIdx);
+  } else {
+    mastered[currentCat].add(currentIdx);
+  }
+
+  render();
+
+  // Auto-advance to next phrase if we just marked this one mastered
+  if (mastered[currentCat].has(currentIdx) && currentIdx < getCatPhrases().length - 1) {
+    setTimeout(() => navigate(1), 600);
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EVENT LISTENER REGISTRATION
+   ───────────────────────────────────────────────────────────────────────────
+   All listeners registered here, after the DOM is parsed (script is at
+   bottom of <body>). No inline onclick="" attributes exist in the HTML.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+// Flip cards — click and keyboard (Enter / Space for accessibility)
+['itCard', 'grCard'].forEach(id => {
+  const lang = id === 'itCard' ? 'it' : 'gr';
+  const el   = document.getElementById(id);
+  if (!el) return;
+
+  el.addEventListener('click', () => flipCard(lang));
+  el.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();   // Prevent page scroll on Space
+      flipCard(lang);
+    }
+  });
+});
+
+// Audio buttons — stopPropagation prevents the click from also flipping the card
+document.getElementById('itAudioBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  speakPhrase('it');
+});
+document.getElementById('grAudioBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  speakPhrase('gr');
+});
+
+// Voice selectors
+document.getElementById('itVoiceSelect').addEventListener('change', function () {
+  setVoice('it', this.value);
+});
+document.getElementById('grVoiceSelect').addEventListener('change', function () {
+  setVoice('gr', this.value);
+});
+
+// Navigation
+document.getElementById('prevBtn').addEventListener('click',    () => navigate(-1));
+document.getElementById('nextBtn').addEventListener('click',    () => navigate(1));
+document.getElementById('flipBothBtn').addEventListener('click', flipBoth);
+document.getElementById('masteredBtn').addEventListener('click',  markMastered);
+
+// Keyboard shortcuts for power users
+document.addEventListener('keydown', e => {
+  // Don't intercept shortcuts when focus is on a select or button
+  const tag = document.activeElement && document.activeElement.tagName;
+  if (tag === 'SELECT' || tag === 'BUTTON') return;
+
+  switch (e.key) {
+    case 'ArrowRight': case 'l': navigate(1);          break;
+    case 'ArrowLeft':  case 'h': navigate(-1);         break;
+    case 'f':                    flipBoth();            break;
+    case 'm':                    markMastered();        break;
+  }
+});
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INITIALISATION
+   ═══════════════════════════════════════════════════════════════════════════ */
+initMastered();
+renderCategories();
+renderTip();
+render();
+</script>
+</body>
+</html>

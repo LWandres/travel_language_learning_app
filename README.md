@@ -2,7 +2,7 @@
 
 A single-file, offline-capable web app for learning essential Italian and Greek phrases before a trip. Tap cards to flip, hear pronunciation via your device's built-in speech engine, and mark phrases as mastered to track your progress. This is no-frills just in time learning when you're on a time crunch! Enjoy!
 
-**Live demo:** `https://lwandres.github.io/travel_language_learning_app/`
+**Live demo:** `https://lwandres.github.io/travel_language_learning_app/greek_italian_travel_phrases.html`
 
 ---
 
@@ -25,7 +25,7 @@ A single-file, offline-capable web app for learning essential Italian and Greek 
 4. Go to **Settings → Pages** → set Source to `main` branch, root `/`.
 5. GitHub Pages will publish your site within a minute. The URL will be:
    ```
-   https://lwandres.github.io/travel_language_learning_app/
+   [https://lwandres.github.io/travel_language_learning_app/greek_italian_travel_phrases.html]
    ```
 
 > **Tip for sharing:** Copy the URL and send it to your friend — no login required to view.
